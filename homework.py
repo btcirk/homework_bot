@@ -69,12 +69,12 @@ def parse_status(homework):
     homework_status = homework['status']
     logger.debug(f'Статус домашки: {homework_status}')
     #now = datetime.now()
-    now = datetime.strftime('2022-03-09T12:59:59Z', '%Y-%m-%dT%H:%M:%SZ')
-    updated = datetime.strftime(homework['date_updated'], '%Y-%m-%dT%H:%M:%SZ')
+    now = datetime.strptime('2022-03-09T12:59:59Z', '%Y-%m-%dT%H:%M:%SZ')
+    updated = datetime.strptime(homework['date_updated'], '%Y-%m-%dT%H:%M:%SZ')
     logger.debug(f'Время сейчас: {now}')
     logger.debug(f'Время последнего обновления домашки: {updated}')
-    print(now - updated)
-    if (now - updated) > datetime.timedelta(minutes=10):
+    logger.debug(f'Разница в обновлении домашки составляет: {now - updated}')
+    if (now - updated) > timedelta(minutes=10):
         logger.info(f'Обновлений не было')
         return False
     else:
