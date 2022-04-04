@@ -53,9 +53,11 @@ def get_api_answer(current_timestamp):
     try:
         api_answer = requests.get(ENDPOINT, headers=HEADERS, params=params)
         if not api_answer.status_code // 100 == 2:
-            raise BadStatusCode
+            message = (f'Эндпоинт {ENDPOINT} недоступен. '
+                       f'Код ответа API: {api_answer.status_code}')
+            raise Exception(message)
     except requests.exceptions.RequestException as ex:
-        logger.error(f'Ошибка при запросе к основному API: {ex}')
+        raise Exception(f'Ошибка при запросе к основному API: {ex}')
     else:
         return api_answer.json()
 
@@ -69,12 +71,6 @@ def check_response(response):
     if type(response['homeworks']) is not list:
         raise TypeError('Домашка не возвращается в виде списка')
     return response['homeworks']
-    #try:
-    #    homeworks_list = response['homeworks']
-    #except KeyError as ex:
-    #    raise BadResponse(ex)
-    #else:
-    #    return homeworks_list
 
 
 def parse_status(homework):
