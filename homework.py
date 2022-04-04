@@ -64,7 +64,7 @@ def check_response(response):
     """Проверяет ответ API и возвращает список домашних работ."""
     if type(response) is not dict:
         raise TypeError('Ответ не является словарем')
-    if response['homeworks'] == None:
+    if 'homeworks' not in response:
         raise KeyError('Ответ не содержит ключ homeworks')
     if type(response['homeworks']) is not list:
         raise TypeError('Домашка не возвращается в виде списка')
@@ -113,9 +113,10 @@ def main():
             logger.debug(f'Ответ get_api_answer: {response}')
             check = check_response(response)
             logger.debug(f'Ответ check_response: {check}')
-            message = parse_status(check[0])
-            logger.debug(f'Ответ parse_status: {message}')
-            send_message(bot, message)
+            if check:
+                message = parse_status(check[0])
+                logger.debug(f'Ответ parse_status: {message}')
+                send_message(bot, message)
 
             current_timestamp = response['current_date']
             time.sleep(RETRY_TIME)
@@ -125,6 +126,7 @@ def main():
             logger.error(f'API возвращает код, отличный от 200')
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
+            logger.error(message)
             ...
             time.sleep(RETRY_TIME)
         else:
