@@ -8,6 +8,7 @@ from telegram.ext import CommandHandler, Filters, MessageHandler, Updater
 from dotenv import load_dotenv
 from logging import StreamHandler
 from datetime import datetime, timedelta
+from exceptions import *
 
 load_dotenv()
 
@@ -16,18 +17,15 @@ PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
-RETRY_TIME = 600
+RETRY_TIME = 60
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
-
 
 HOMEWORK_STATUSES = {
     'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
     'reviewing': 'Работа взята на проверку ревьюером.',
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
-
-hw = {}
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -40,26 +38,43 @@ handler.setFormatter(formatter)
 
 
 def send_message(bot, message):
-    ...
+    """Отправка сообщения в Telegram."""
+    try:
+        bot.send_message(TELEGRAM_CHAT_ID, message)
+    except Exception as error:
+        logger.error(f'Сбой при отправке сообщения в Telegram: {error}')
 
 
 def get_api_answer(current_timestamp):
     """Получение ответа API."""
     timestamp = current_timestamp or int(time.time())
-    params = {'from_date': 1646092800}
+    #params = {'from_date': 1646092800}
+    params = {'from_date': timestamp}
     try:
         api_answer = requests.get(ENDPOINT, headers=HEADERS, params=params)
+        if not api_answer.status_code // 100 == 2:
+            raise BadStatusCode
+    except requests.exceptions.RequestException as ex:
+        logger.error(f'Ошибка при запросе к основному API: {ex}')
+    else:
         return api_answer.json()
-    except Exception as error:
-        logger.error(f'Ошибка при запросе к основному API: {error}')
 
 
 def check_response(response):
-    """Проверка корректности ответа API."""
-    try:
-        return response['homeworks']
-    except Exception as error:
-        logger.error(f'В ответе API отсутствует ожидаемый ключ: {error}')
+    """Проверяет ответ API и возвращает список домашних работ."""
+    if type(response) is not dict:
+        raise TypeError('Ответ не является словарем')
+    if response['homeworks'] == None:
+        raise KeyError('Ответ не содержит ключ homeworks')
+    if type(response['homeworks']) is not list:
+        raise TypeError('Домашка не возвращается в виде списка')
+    return response['homeworks']
+    #try:
+    #    homeworks_list = response['homeworks']
+    #except KeyError as ex:
+    #    raise BadResponse(ex)
+    #else:
+    #    return homeworks_list
 
 
 def parse_status(homework):
@@ -68,24 +83,8 @@ def parse_status(homework):
     logger.debug(f'Название домашки: {homework_name}')
     homework_status = homework['status']
     logger.debug(f'Статус домашки: {homework_status}')
-    #now = datetime.now()
-    now = datetime.strptime('2022-03-09T12:59:59Z', '%Y-%m-%dT%H:%M:%SZ')
-    updated = datetime.strptime(homework['date_updated'], '%Y-%m-%dT%H:%M:%SZ')
-    logger.debug(f'Время сейчас: {now}')
-    logger.debug(f'Время последнего обновления домашки: {updated}')
-    logger.debug(f'Разница в обновлении домашки составляет: {now - updated}')
-    if (now - updated) > timedelta(minutes=10):
-        logger.info(f'Обновлений не было')
-        return False
-    else:
-
-        ...
-
-        verdict = 'hjgj'
-
-        ...
-
-        return f'Изменился статус проверки работы "{homework_name}". {verdict}'
+    verdict = HOMEWORK_STATUSES[homework_status]
+    return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
 def check_tokens():
@@ -114,13 +113,16 @@ def main():
             logger.debug(f'Ответ get_api_answer: {response}')
             check = check_response(response)
             logger.debug(f'Ответ check_response: {check}')
-            parse = parse_status(check[0])
-            logger.debug(f'Ответ parse_status: {parse}')
-            ...
+            message = parse_status(check[0])
+            logger.debug(f'Ответ parse_status: {message}')
+            send_message(bot, message)
 
-            current_timestamp = int(time.time())
+            current_timestamp = response['current_date']
             time.sleep(RETRY_TIME)
-
+        except BadResponse:
+            logger.error(f'В ответе API отсутствует ожидаемый ключ: homeworks')
+        except BadStatusCode:
+            logger.error(f'API возвращает код, отличный от 200')
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             ...
