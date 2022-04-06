@@ -7,6 +7,7 @@ import telegram
 from dotenv import load_dotenv
 from logging import StreamHandler
 from http import HTTPStatus
+from exceptions import WarningMessage
 
 load_dotenv()
 
@@ -41,7 +42,9 @@ def send_message(bot, message):
         bot.send_message(TELEGRAM_CHAT_ID, message)
         logger.info(f'Бот отправил сообщение {message}')
     except Exception as error:
-        raise Exception(f'Сбой при отправке сообщения в Telegram: {error}')
+        raise WarningMessage(
+            f'Сбой при отправке сообщения в Telegram: {error}'
+        )
 
 
 def get_api_answer(current_timestamp):
@@ -67,7 +70,7 @@ def check_response(response):
     if 'homeworks' not in response:
         raise KeyError('Ответ не содержит ключ homeworks')
     if not isinstance(response['homeworks'], list):
-        raise TypeError('Домашка не возвращается в виде списка')
+        raise WarningMessage('Домашка не возвращается в виде списка')
     return response['homeworks']
 
 
@@ -121,6 +124,9 @@ def main():
                 MESSAGE = message
             else:
                 logger.debug('Ответ не изменился. Подождем ещё.')
+        except WarningMessage as warning:
+            message = f'Внимание: {warning}'
+            logger.error(message)
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             logger.error(message)
