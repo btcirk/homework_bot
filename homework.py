@@ -121,8 +121,6 @@ def main():
                 MESSAGE = message
             else:
                 logger.debug('Ответ не изменился. Подождем ещё.')
-
-            #current_timestamp = response['current_date']
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             logger.error(message)
