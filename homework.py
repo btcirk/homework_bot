@@ -6,6 +6,7 @@ import requests
 import telegram
 from dotenv import load_dotenv
 from logging import StreamHandler
+from http import HTTPStatus
 
 load_dotenv()
 
@@ -14,7 +15,7 @@ PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
-RETRY_TIME = 600
+RETRY_TIME = 10
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 
@@ -46,11 +47,10 @@ def send_message(bot, message):
 def get_api_answer(current_timestamp):
     """Получение ответа API."""
     timestamp = current_timestamp or int(time.time())
-    # params = {'from_date': 1646092800}
     params = {'from_date': timestamp}
     try:
         api_answer = requests.get(ENDPOINT, headers=HEADERS, params=params)
-        if not api_answer.status_code // 100 == 2:
+        if api_answer.status_code != HTTPStatus.OK:
             message = (f'Эндпоинт {ENDPOINT} недоступен. '
                        f'Код ответа API: {api_answer.status_code}')
             raise Exception(message)
@@ -62,11 +62,11 @@ def get_api_answer(current_timestamp):
 
 def check_response(response):
     """Проверяет ответ API и возвращает список домашних работ."""
-    if type(response) is not dict:
+    if not isinstance(response, dict):
         raise TypeError('Ответ не является словарем')
     if 'homeworks' not in response:
         raise KeyError('Ответ не содержит ключ homeworks')
-    if type(response['homeworks']) is not list:
+    if not isinstance(response['homeworks'], list):
         raise TypeError('Домашка не возвращается в виде списка')
     return response['homeworks']
 
@@ -95,16 +95,8 @@ def check_tokens():
 def main():
     """Основная логика работы бота."""
     if check_tokens() is False:
-        if not PRACTICUM_TOKEN:
-            logger.critical('Отсутствует обязательная переменная '
-                            'окружения: PRACTICUM_TOKEN')
-        if not TELEGRAM_TOKEN:
-            logger.critical('Отсутствует обязательная переменная '
-                            'окружения: TELEGRAM_TOKEN')
-        if not TELEGRAM_CHAT_ID:
-            logger.critical('Отсутствует обязательная переменная '
-                            'окружения: TELEGRAM_CHAT_ID')
-        logger.critical('Программа принудительно остановлена.')
+        logger.critical('Отсутствует обязательная переменная окружения. '
+                        'Программа принудительно остановлена.')
         raise SystemExit
 
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
@@ -117,6 +109,10 @@ def main():
             response = get_api_answer(current_timestamp)
             logger.debug(f'Ответ get_api_answer: {response}')
             check = check_response(response)
+            if len(check) == 0:
+                logger.debug('Список домашек пуст. Подождем ещё.')
+                current_timestamp = response['current_date']
+                continue
             logger.debug(f'Ответ check_response: {check}')
             message = parse_status(check[0])
             logger.debug(f'Ответ parse_status: {message}')
@@ -124,19 +120,19 @@ def main():
                 send_message(bot, message)
                 MESSAGE = message
             else:
-                logger.debug('Ответ не изменился. Подождем еще.')
+                logger.debug('Ответ не изменился. Подождем ещё.')
 
-            current_timestamp = response['current_date']
-            time.sleep(RETRY_TIME)
+            #current_timestamp = response['current_date']
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             logger.error(message)
             if message != ERROR:
                 send_message(bot, message)
                 ERROR = message
-            time.sleep(RETRY_TIME)
         else:
-            ...
+            current_timestamp = response['current_date']
+        finally:
+            time.sleep(RETRY_TIME)
 
 
 if __name__ == '__main__':
